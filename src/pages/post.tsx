@@ -2,50 +2,59 @@ import { useEffect, useState } from 'react';
 import client from '../../client';
 import styles from '../pages/billing.module.css';
 
+interface BillingRecord {
+  _id: string;
+  name: string;
+  due_date?: string;
+  finished_date?: string;
+  amount: number;
+  payment: string;
+  account_number: string;
+  billing: string;
+  status: string;
+  month: number;
+  year: number;
+}
+
+interface SalaryRecord {
+  _id: string;
+  employer: string;
+  salary: number;
+  date_received: string;
+  month: number;
+  year: number;
+}
+
+interface MonthlyRecord {
+  billings: BillingRecord[];
+  salaries: SalaryRecord[];
+}
+
+const currentYear = new Date().getFullYear();
+const currentMonth = new Date().getMonth() + 1;
+
 const BillingAndSalaryPage = () => {
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState(currentYear); // Default to the current year
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // Default to the current month
-  const [monthlyData, setMonthlyData] = useState({});
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [monthlyData, setMonthlyData] = useState<Record<string, MonthlyRecord>>({});
   const [totalBalance, setTotalBalance] = useState(0);
 
+  // Fetch data for the selected month & year
+  const fetchData = async () => {
+    const billingData = await client.fetch<BillingRecord[]>(`*[_type == "billing" && month == ${selectedMonth} && year == ${selectedYear}]`);
+    const salaryData = await client.fetch<SalaryRecord[]>(`*[_type == "salary" && month == ${selectedMonth} && year == ${selectedYear}]`);
+    
+    setMonthlyData(prev => ({
+      ...prev,
+      [`${selectedYear}-${selectedMonth}`]: { billings: billingData, salaries: salaryData }
+    }));
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      // Fetch billing data for the selected month & year
-      const billingData = await client.fetch(`*[_type == "billing" && month == ${selectedMonth} && year == ${selectedYear}]{
-        _id,
-        name,
-        due_date,
-        finished_date,
-        amount,
-        payment,
-        account_number,
-        billing,
-        status,
-        month,
-        year
-      }`);
-
-      // Fetch salary data for the selected month & year
-      const salaryData = await client.fetch(`*[_type == "salary" && month == ${selectedMonth} && year == ${selectedYear}]{
-        _id,
-        employer,
-        salary,
-        date_received,
-        month,
-        year
-      }`);
-
-      setMonthlyData(prev => ({
-        ...prev,
-        [`${selectedYear}-${selectedMonth}`]: { billings: billingData, salaries: salaryData }
-      }));
-    };
-
     fetchData();
-  }, [selectedMonth, selectedYear]); // Refetch data when month or year changes
+  }, [selectedMonth, selectedYear]);
 
-  // Function to update the payment status dynamically
+  // Function to update payment status dynamically
   const updatePaymentStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === "paid" ? "unpaid" : "paid";
     await client.patch(id).set({ status: newStatus }).commit();
@@ -54,30 +63,26 @@ const BillingAndSalaryPage = () => {
       ...prev,
       [`${selectedYear}-${selectedMonth}`]: {
         ...prev[`${selectedYear}-${selectedMonth}`],
-        billings: prev[`${selectedYear}-${selectedMonth}`].billings.map(bill =>
+        billings: prev[`${selectedYear}-${selectedMonth}`]?.billings.map(bill =>
           bill._id === id ? { ...bill, status: newStatus } : bill
-        )
+        ) || []
       }
     }));
   };
-  
 
-
+  // Calculate total balance based on salaries and paid bills
   useEffect(() => {
-    if (!monthlyData[`${selectedYear}-${selectedMonth}`]) return;
-  
-    const { salaries, billings } = monthlyData[`${selectedYear}-${selectedMonth}`];
-  
-    const totalSalary = salaries.reduce((acc, salary) => acc + salary.salary, 0);
-    const totalPaidBills = billings.filter(bill => bill.status === "paid").reduce((acc, bill) => acc + bill.amount, 0);
-  
+    const data = monthlyData[`${selectedYear}-${selectedMonth}`];
+    if (!data) return;
+
+    const totalSalary = data.salaries.reduce((acc, salary) => acc + salary.salary, 0);
+    const totalPaidBills = data.billings.filter(bill => bill.status === "paid").reduce((acc, bill) => acc + bill.amount, 0);
     setTotalBalance(totalSalary - totalPaidBills);
   }, [monthlyData, selectedMonth, selectedYear]);
-  
 
   return (
     <div className={styles.pageContainer}>
-      {/* Year Selection Dropdown */}
+      {/* Year Selection */}
       <div className={styles.yearSelect}>
         <label>Select Year:</label>
         <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
@@ -87,7 +92,7 @@ const BillingAndSalaryPage = () => {
         </select>
       </div>
 
-      {/* Month Selection Tabs */}
+      {/* Month Selection */}
       <div className={styles.tabs}>
         {[...Array(12)].map((_, i) => (
           <button
@@ -114,7 +119,7 @@ const BillingAndSalaryPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {monthlyData[`${selectedYear}-${selectedMonth}`].billings.map((item) => (
+                {monthlyData[`${selectedYear}-${selectedMonth}`]?.billings.map((item) => (
                   <tr key={item._id}>
                     <td>{item.name}</td>
                     <td>{item.due_date || '-'}</td>
@@ -158,7 +163,7 @@ const BillingAndSalaryPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {monthlyData[`${selectedYear}-${selectedMonth}`].salaries.map((item) => (
+                {monthlyData[`${selectedYear}-${selectedMonth}`]?.salaries.map((item) => (
                   <tr key={item._id}>
                     <td>{item.employer}</td>
                     <td>₱{item.salary}</td>
@@ -170,8 +175,8 @@ const BillingAndSalaryPage = () => {
           </div>
         </>
       )}
-      <h2 className={styles.total}>Total Balance: ₱{totalBalance}</h2>
 
+      <h2 className={styles.total}>Total Balance: ₱{totalBalance}</h2>
     </div>
   );
 };
