@@ -46,10 +46,10 @@ const BillingAndSalaryPage = () => {
   }, [selectedMonth, selectedYear]); // Refetch data when month or year changes
 
   // Function to update the payment status dynamically
-  const updatePaymentStatus = async (id, currentStatus) => {
+  const updatePaymentStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === "paid" ? "unpaid" : "paid";
     await client.patch(id).set({ status: newStatus }).commit();
-
+  
     setMonthlyData(prev => ({
       ...prev,
       [`${selectedYear}-${selectedMonth}`]: {
@@ -60,6 +60,7 @@ const BillingAndSalaryPage = () => {
       }
     }));
   };
+  
 
 
   useEffect(() => {
