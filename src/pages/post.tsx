@@ -21,6 +21,15 @@ interface SalaryRecord {
   employer: string;
   salary: number;
   date_received: string;
+  status:string;
+  month: number;
+  year: number;
+}
+
+interface DailyExpenseRecord {
+  _id: string;
+  expense: string;
+  amount: number;
   month: number;
   year: number;
 }
@@ -28,6 +37,7 @@ interface SalaryRecord {
 interface MonthlyRecord {
   billings: BillingRecord[];
   salaries: SalaryRecord[];
+  expense: DailyExpenseRecord[];
 }
 
 const currentYear = new Date().getFullYear();
@@ -44,10 +54,12 @@ const BillingAndSalaryPage = () => {
   const fetchData = async () => {
     const billingData = await client.fetch<BillingRecord[]>(`*[_type == "billing" && month == ${selectedMonth} && year == ${selectedYear}]`);
     const salaryData = await client.fetch<SalaryRecord[]>(`*[_type == "salary" && month == ${selectedMonth} && year == ${selectedYear}]`);
+    const dailyExpenseData = await client.fetch<DailyExpenseRecord[]>(`*[_type == "daily" && month == ${selectedMonth} && year == ${selectedYear}]`);
     
+
     setMonthlyData(prev => ({
       ...prev,
-      [`${selectedYear}-${selectedMonth}`]: { billings: billingData, salaries: salaryData }
+      [`${selectedYear}-${selectedMonth}`]: { billings: billingData, salaries: salaryData , expense:dailyExpenseData }
     }));
   };
 
@@ -71,17 +83,36 @@ const BillingAndSalaryPage = () => {
     }));
   };
 
+  // Function to update payment status dynamically
+  const updatePaymentStatusSalary = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "paid" ? "unpaid" : "paid";
+    await client.patch(id).set({ status: newStatus }).commit();
+  
+    setMonthlyData(prev => ({
+      ...prev,
+      [`${selectedYear}-${selectedMonth}`]: {
+        ...prev[`${selectedYear}-${selectedMonth}`],
+        salaries: prev[`${selectedYear}-${selectedMonth}`]?.salaries.map(salary =>
+          salary._id === id ? { ...salary, status: newStatus } : salary
+        ) || []
+      }
+    }));
+  };
+
   // Calculate total balance based on salaries and paid bills
   useEffect(() => {
     const data = monthlyData[`${selectedYear}-${selectedMonth}`];
     if (!data) return;
 
     const totalSalary = data.salaries.reduce((acc, salary) => acc + salary.salary, 0);
+    const totalSalaryPaid = data.salaries.filter(salary => salary.status === "paid").reduce((acc, salary) => acc + salary.salary, 0);
     const totalPaidBills = data.billings.filter(bill => bill.status === "paid").reduce((acc, bill) => acc + bill.amount, 0);
     const assumedBills = data.billings.reduce((acc, bill) => acc + bill.amount, 0);
+    const dailyExpenseBills = data.expense.reduce((acc, bill) => acc + bill.amount, 0);
 
-    setAssumingBalance(totalSalary - assumedBills)
-    setTotalBalance(totalSalary - totalPaidBills);
+
+    setAssumingBalance(totalSalary - assumedBills - dailyExpenseBills)
+    setTotalBalance(totalSalaryPaid - totalPaidBills - dailyExpenseBills);
   }, [monthlyData, selectedMonth, selectedYear]);
 
   return (
@@ -145,6 +176,7 @@ const BillingAndSalaryPage = () => {
                         {item.status === "paid" ? "Mark Unpaid" : "Mark Paid"}
                       </button>
                     </td>
+
                   </tr>
                 ))}
               </tbody>
@@ -152,6 +184,35 @@ const BillingAndSalaryPage = () => {
           </div>
         </>
       )}
+
+      {/* Daily Expenses */}
+
+       {monthlyData[`${selectedYear}-${selectedMonth}`] && (
+        <>
+          <h1 className={styles.title}>Daily Expense - {selectedYear} {new Date(currentYear, selectedMonth - 1).toLocaleString('default', { month: 'long' })}</h1>
+          <div className={styles.tableContainer}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  {['Expense', 'Amount' , ].map((head, index) => (
+                    <th key={index}>{head}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyData[`${selectedYear}-${selectedMonth}`]?.expense.map((item) => (
+                  <tr key={item._id}>
+                    <td>{item.expense}</td>
+                    <td>₱{item.amount}</td>
+                    
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
 
       {/* Salary Records */}
       {monthlyData[`${selectedYear}-${selectedMonth}`] && (
@@ -161,7 +222,7 @@ const BillingAndSalaryPage = () => {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  {['Employer', 'Salary', 'Date Received'].map((head, index) => (
+                  {['Employer', 'Salary', 'Date Received', 'Status', 'Action'].map((head, index) => (
                     <th key={index}>{head}</th>
                   ))}
                 </tr>
@@ -172,6 +233,19 @@ const BillingAndSalaryPage = () => {
                     <td>{item.employer}</td>
                     <td>₱{item.salary}</td>
                     <td>{item.date_received}</td>
+                    <td>
+                      <span className={`${styles.status} ${item.status === "paid" ? styles.statusPaid : styles.statusUnpaid}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        className={`${styles.button} ${item.status === "paid" ? styles.paidButton : styles.unpaidButton}`}
+                        onClick={() => updatePaymentStatusSalary(item._id, item.status)}
+                      >
+                        {item.status === "paid" ? "Mark Unpaid" : "Mark Paid"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -179,6 +253,14 @@ const BillingAndSalaryPage = () => {
           </div>
         </>
       )}
+
+
+
+     
+
+
+
+
       <h2 className={styles.total}>Assuming Balance: ₱{assumingBalance}</h2>
       <h2 className={styles.total}>Total Balance: ₱{totalBalance}</h2>
     </div>

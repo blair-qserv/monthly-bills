@@ -22,6 +22,19 @@ export default defineType({
       type: 'string',
     }),
     defineField({
+      name: 'status',
+      title: 'Status',
+      type: 'string',
+      options: {
+        list: [
+          { title: 'Paid', value: 'paid' },
+          { title: 'Unpaid', value: 'unpaid' },
+        ],
+        layout: 'radio', // or 'dropdown' if you prefer
+      },
+      initialValue: 'unpaid', // optional default
+    }) ,
+    defineField({
       name: 'month',
       title: 'Month',
       type: 'number',
