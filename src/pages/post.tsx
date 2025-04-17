@@ -179,7 +179,7 @@ const BillingAndSalaryPage = () => {
           </div>
         </>
       )}
-      <h2 className={styles.total}>Assuming Balance: ₱{totalBalance}</h2>
+      <h2 className={styles.total}>Assuming Balance: ₱{assumingBalance}</h2>
       <h2 className={styles.total}>Total Balance: ₱{totalBalance}</h2>
     </div>
   );
