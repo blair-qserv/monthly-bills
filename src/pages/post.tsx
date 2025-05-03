@@ -49,6 +49,8 @@ const BillingAndSalaryPage = () => {
   const [monthlyData, setMonthlyData] = useState<Record<string, MonthlyRecord>>({});
   const [totalBalance, setTotalBalance] = useState(0);
   const [assumingBalance, setAssumingBalance] = useState(0);
+  const [assumingBills, setAssumingBills] = useState(0);
+  const [paidBills,setPaidBills] = useState(0);
 
   // Fetch data for the selected month & year
   const fetchData = async () => {
@@ -110,7 +112,8 @@ const BillingAndSalaryPage = () => {
     const assumedBills = data.billings.reduce((acc, bill) => acc + bill.amount, 0);
     const dailyExpenseBills = data.expense.reduce((acc, bill) => acc + bill.amount, 0);
 
-
+    setAssumingBills(assumedBills)
+    setPaidBills(assumedBills - totalPaidBills)
     setAssumingBalance(totalSalary - assumedBills - dailyExpenseBills)
     setTotalBalance(totalSalaryPaid - totalPaidBills - dailyExpenseBills);
   }, [monthlyData, selectedMonth, selectedYear]);
@@ -185,6 +188,8 @@ const BillingAndSalaryPage = () => {
         </>
       )}
 
+  <h2 className={styles.total}>Assuming Bill: ₱{assumingBills}</h2>
+  <h2 className={styles.total}>Remaining Bill: ₱{paidBills}</h2>
       {/* Daily Expenses */}
 
        {monthlyData[`${selectedYear}-${selectedMonth}`] && (
